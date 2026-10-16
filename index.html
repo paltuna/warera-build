@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Build Optimizer</title>
+<style>
+:root{--bg:#f3f5f2;--card:#fff;--ink:#1c2420;--mute:#66736c;--line:#d9e0db;--acc:#1f6f54;--accink:#fff;--warn:#a5481f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121715;--card:#1b221f;--ink:#e6ece8;--mute:#8d9b93;--line:#2c3631;--acc:#5fc79b;--accink:#0d1a14;--warn:#e59a6c}}
+:root[data-theme="dark"]{--bg:#121715;--card:#1b221f;--ink:#e6ece8;--mute:#8d9b93;--line:#2c3631;--acc:#5fc79b;--accink:#0d1a14;--warn:#e59a6c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+h1{font:700 30px/1.1 Georgia,"Times New Roman",serif;margin:8px 0 4px}
+h2{font:700 17px/1.2 Georgia,serif;margin:0 0 12px}
+p.sub{color:var(--mute);margin:0 0 20px;max-width:62ch}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.full{grid-column:1/-1}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row span.k{flex:1}
+.row small{color:var(--mute)}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:4px 10px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button.go{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700;padding:8px 14px}
+.step{width:30px;padding:2px 0}
+.val{min-width:64px;text-align:center;font-variant-numeric:tabular-nums}
+input,select{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:84px}
+select{width:auto}
+.big{font:700 34px/1 Georgia,serif;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:10px}
+.stats small{display:block;color:var(--mute)}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.note{color:var(--mute);font-size:13px}
+.warn{color:var(--warn)}
+#msg{margin-top:10px;min-height:1.4em}
+.overflow{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Build Optimizer</h1>
+<p class="sub">Spend your skill points, pick ammo and food, and see expected damage and daily cost. The optimizer finds the cheapest build for a damage target, or the strongest build for a budget.</p>
+
+<div class="grid">
+<section class="card full" aria-labelledby="rh">
+<h2 id="rh">Results</h2>
+<div class="stats">
+<div><small>Expected total damage</small><div class="big" id="rDmg">0</div></div>
+<div><small>Damage per hit</small><div class="big" id="rHit">0</div></div>
+<div><small>Net cost per day</small><div class="big" id="rNet">0</div></div>
+</div>
+<div class="overflow" id="rMore" class="note"></div>
+</section>
+
+<section class="card" aria-labelledby="sh">
+<h2 id="sh">Skills <small class="note" id="ptsLeft"></small></h2>
+<div id="skills"></div>
+<p style="margin:10px 0 0"><button id="reset">Reset points</button></p>
+</section>
+
+<section class="card" aria-labelledby="bh">
+<h2 id="bh">Buffs and prices</h2>
+<div class="row"><span class="k">Pill (+60% damage)</span><input id="pillOn" type="checkbox" style="width:auto"><input id="pillP" type="number" step="0.01" min="0" aria-label="Pill price"></div>
+<div class="row"><span class="k">Ammo</span><select id="ammo"></select></div>
+<div id="ammoP"></div>
+<div class="row"><span class="k">Food</span><select id="food"></select></div>
+<div id="foodP"></div>
+<div class="row"><span class="k">Damage bonus (orders, HQ, etc.)</span><span><input id="bonus" type="number" min="0" step="1"> %</span></div>
+<div class="row"><span class="k">Gear lasts (days)</span><input id="dur" type="number" min="1" step="1"></div>
+</section>
+
+<section class="card full" aria-labelledby="gh">
+<h2 id="gh">Equipment</h2>
+<div class="overflow"><div id="gear"></div></div>
+<p class="note">Enter current market prices yourself. This page cannot load live prices.</p>
+</section>
+
+<section class="card full" aria-labelledby="oh">
+<h2 id="oh">Optimizer</h2>
+<div class="tabs" role="group" aria-label="Mode">
+<button id="mT" aria-pressed="true">Cheapest for target damage</button>
+<button id="mB" aria-pressed="false">Max damage for budget</button>
+</div>
+<div class="row"><span class="k" id="oLabel">Target damage</span><input id="oVal" type="number" min="0" step="100"></div>
+<p><button class="go" id="run">Run optimizer</button> <button id="share">Copy share link</button></p>
+<div id="msg" role="status"></div>
+<p class="note">The optimizer places points one at a time, always where damage rises most, and tries all ammo and food combinations.</p>
+</section>
+
+<section class="card full" aria-labelledby="ch">
+<h2 id="ch">Formula settings</h2>
+<p class="note">These numbers drive every calculation. They are my best guesses, not the game's official values. Change them to match what you see in game.</p>
+<div class="overflow" id="cfg"></div>
+</section>
+</div>
+</main>
+
+<script>
+const SK=[
+ {id:'attack',name:'Attack',base:100,per:10,unit:''},
+ {id:'precision',name:'Precision',base:50,per:2,max:100,unit:'%'},
+ {id:'critChance',name:'Crit chance',base:10,per:1,max:100,unit:'%'},
+ {id:'critDmg',name:'Crit damage',base:100,per:5,unit:'%'},
+ {id:'health',name:'Health',base:100,per:10,unit:''},
+ {id:'hunger',name:'Hunger',base:4,per:1,unit:''}
+];
+const AMMO=[['Light',0.10,0.12],['Regular',0.20,0.46],['Heavy',0.40,1.94]];
+const FOOD=[['Bread',0.10,0.9],['Steak',0.15,2],['Fish',0.20,4.5]];
+const SLOTS=['Weapon','Helmet','Chest','Pants','Boots','Gloves'];
+const CF={maxPts:40,burst:0.37,sust:7.5,caseRate:0.032,caseVal:4,eliteRate:0.0003,eliteVal:15,pill:0.6};
+const CFGDEF=[['maxPts','Skill points'],['burst','Burst hits per health'],['sust','Sustained hits per hunger point'],['caseRate','Cases per hit'],['caseVal','Case value (coins)'],['eliteRate','Elite cases per hit'],['eliteVal','Elite case value'],['pill','Pill damage bonus']];
+const S={pts:{},ammo:1,food:1,pillOn:false,pillP:22,bonus:0,dur:20,ammoP:AMMO.map(a=>a[2]),foodP:FOOD.map(f=>f[2]),gearP:SLOTS.map(()=>28),gearB:SLOTS.map(()=>3),mode:'T',oVal:30000};
+SK.forEach(s=>S.pts[s.id]=0);
+const $=id=>document.getElementById(id);
+const fmt=(n,d=0)=>Number(n).toLocaleString('en',{maximumFractionDigits:d,minimumFractionDigits:d});
+const used=p=>SK.reduce((a,s)=>a+p[s.id],0);
+const sval=(s,p)=>{let v=s.base+s.per*p[s.id];return s.max?Math.min(v,s.max):v};
+
+function evalB(st){
+ const v={};SK.forEach(s=>v[s.id]=sval(s,st.pts));
+ const gear=st.gearB.reduce((a,b)=>a+b,0)/100;
+ const pill=st.pillOn?CF.pill:0;
+ const hitBase=v.attack*(1+gear)*(1+pill)*(1+AMMO[st.ammo][1])*(1+st.bonus/100);
+ const crit=1+(v.critChance/100)*(v.critDmg/100);
+ const perHit=hitBase*(v.precision/100)*crit;
+ const burst=Math.floor(v.health*CF.burst),sust=Math.floor(v.hunger*CF.sust),hits=burst+sust;
+ const dmg=perHit*hits;
+ const gearCost=st.gearP.reduce((a,b)=>a+b,0)/Math.max(1,st.dur);
+ const ammoC=st.ammoP[st.ammo]*hits;
+ const foodC=st.foodP[st.food]*v.hunger;
+ const pillC=st.pillOn?st.pillP:0;
+ const gross=gearCost+ammoC+foodC+pillC;
+ const inc=hits*(CF.caseRate*CF.caseVal+CF.eliteRate*CF.eliteVal);
+ return {v,perHit,burst,sust,hits,dmg,gearCost,ammoC,foodC,pillC,gross,inc,net:gross-inc};
+}
+
+function render(){
+ const r=evalB(S);
+ $('rDmg').textContent=fmt(r.dmg);$('rHit').textContent=fmt(r.perHit,1);$('rNet').textContent=fmt(r.net,2)+' c';
+ $('rMore').innerHTML=`<table style="border-collapse:collapse;width:100%"><tbody>
+ ${[['Hits',`${r.hits} (${r.burst} burst + ${r.sust} sustained)`],['Gear upkeep per day',fmt(r.gearCost,2)+' c'],['Ammo',fmt(r.ammoC,2)+' c'],['Food',fmt(r.foodC,2)+' c'],['Pill',fmt(r.pillC,2)+' c'],['Gross cost',fmt(r.gross,2)+' c'],['Case income',fmt(r.inc,2)+' c'],['Net cost per 1K damage',r.dmg?fmt(r.net/r.dmg*1000,3)+' c':'-']].map(x=>`<tr><td style="padding:3px 0;color:var(--mute)">${x[0]}</td><td style="text-align:right">${x[1]}</td></tr>`).join('')}</tbody></table>`;
+ $('ptsLeft').textContent=`(${CF.maxPts-used(S.pts)} of ${CF.maxPts} left)`;
+ SK.forEach(s=>{$('v_'+s.id).textContent=fmt(sval(s,S.pts))+s.unit;$('p_'+s.id).textContent=S.pts[s.id]});
+ try{history.replaceState(null,'','#'+encodeURIComponent(JSON.stringify(S)))}catch(e){}
+}
+
+function build(){
+ $('skills').innerHTML=SK.map(s=>`<div class="row"><span class="k">${s.name}</span>
+ <button class="step" data-s="${s.id}" data-d="-1" aria-label="Remove point from ${s.name}">−</button>
+ <span class="val"><b id="v_${s.id}"></b> <small>(<span id="p_${s.id}"></span>)</small></span>
+ <button class="step" data-s="${s.id}" data-d="1" aria-label="Add point to ${s.name}">+</button></div>`).join('');
+ $('skills').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  const id=b.dataset.s,d=+b.dataset.d;
+  if(d>0&&used(S.pts)>=CF.maxPts)return;if(d<0&&S.pts[id]<=0)return;S.pts[id]+=d;render()};
+ $('reset').onclick=()=>{SK.forEach(s=>S.pts[s.id]=0);render()};
+ $('ammo').innerHTML=AMMO.map((a,i)=>`<option value="${i}">${a[0]} (+${a[1]*100}%)</option>`).join('');
+ $('food').innerHTML=FOOD.map((a,i)=>`<option value="${i}">${a[0]} (+${a[1]*100}%)</option>`).join('');
+ $('ammoP').innerHTML=AMMO.map((a,i)=>`<div class="row"><small>${a[0]} price per hit</small><input type="number" step="0.01" min="0" data-k="ammoP" data-i="${i}" value="${S.ammoP[i]}"></div>`).join('');
+ $('foodP').innerHTML=FOOD.map((a,i)=>`<div class="row"><small>${a[0]} price each</small><input type="number" step="0.01" min="0" data-k="foodP" data-i="${i}" value="${S.foodP[i]}"></div>`).join('');
+ $('gear').innerHTML=`<table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Slot</th><th align="left">Price (c)</th><th align="left">Damage bonus (%)</th></tr></thead><tbody>${SLOTS.map((n,i)=>`<tr><td>${n}</td><td><input type="number" min="0" step="0.5" data-k="gearP" data-i="${i}" value="${S.gearP[i]}"></td><td><input type="number" min="0" step="0.5" data-k="gearB" data-i="${i}" value="${S.gearB[i]}"></td></tr>`).join('')}</tbody></table>`;
+ $('cfg').innerHTML=`<table style="border-collapse:collapse"><tbody>${CFGDEF.map(c=>`<tr><td style="padding:3px 12px 3px 0">${c[1]}</td><td><input type="number" step="any" data-c="${c[0]}" value="${CF[c[0]]}"></td></tr>`).join('')}${SK.map((s,i)=>`<tr><td style="padding:3px 12px 3px 0">${s.name}: start / per point</td><td><input type="number" step="any" data-sk="${i}" data-f="base" value="${s.base}"> <input type="number" step="any" data-sk="${i}" data-f="per" value="${s.per}"></td></tr>`).join('')}</tbody></table>`;
+ document.body.addEventListener('input',e=>{const t=e.target;
+  if(t.dataset.k){S[t.dataset.k][+t.dataset.i]=+t.value||0}
+  else if(t.dataset.c){CF[t.dataset.c]=+t.value||0}
+  else if(t.dataset.sk){SK[+t.dataset.sk][t.dataset.f]=+t.value||0}
+  else if(t.id==='pillOn')S.pillOn=t.checked;
+  else if(t.id==='pillP')S.pillP=+t.value||0;
+  else if(t.id==='bonus')S.bonus=+t.value||0;
+  else if(t.id==='dur')S.dur=+t.value||1;
+  else if(t.id==='ammo')S.ammo=+t.value;
+  else if(t.id==='food')S.food=+t.value;
+  else if(t.id==='oVal')S.oVal=+t.value||0;
+  render()});
+ $('pillP').value=S.pillP;$('bonus').value=S.bonus;$('dur').value=S.dur;$('oVal').value=S.oVal;
+ $('ammo').value=S.ammo;$('food').value=S.food;$('pillOn').checked=S.pillOn;
+ $('mT').onclick=()=>setMode('T');$('mB').onclick=()=>setMode('B');
+ $('run').onclick=optimize;
+ $('share').onclick=()=>{const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>say('Link copied.'),()=>say('Copy the address bar to share this build.'))};
+}
+function setMode(m){S.mode=m;$('mT').setAttribute('aria-pressed',m==='T');$('mB').setAttribute('aria-pressed',m==='B');
+ $('oLabel').textContent=m==='T'?'Target damage':'Daily budget (coins, net)';$('oVal').value=S.oVal=(m==='T'?30000:100)}
+function say(t,w){$('msg').textContent=t;$('msg').className=w?'warn':''}
+
+function optimize(){
+ let best=null;
+ for(let a=0;a<AMMO.length;a++)for(let f=0;f<FOOD.length;f++){
+  const st=JSON.parse(JSON.stringify(S));st.ammo=a;st.food=f;SK.forEach(s=>st.pts[s.id]=0);
+  const path=[{pts:{...st.pts},r:evalB(st)}];
+  for(let i=0;i<CF.maxPts;i++){
+   let bk=null,bd=-1;
+   for(const s of SK){
+    if(s.max&&sval(s,st.pts)>=s.max)continue;
+    st.pts[s.id]++;const d=evalB(st).dmg;st.pts[s.id]--;
+    if(d>bd){bd=d;bk=s.id}
+   }
+   if(!bk)break;st.pts[bk]++;path.push({pts:{...st.pts},r:evalB(st)});
+  }
+  let pick=null;
+  if(S.mode==='T'){pick=path.find(p=>p.r.dmg>=S.oVal);
+   if(pick&&(!best||pick.r.net<best.p.r.net))best={a,f,p:pick}}
+  else{for(const p of path)if(p.r.net<=S.oVal)pick=p;
+   if(pick&&(!best||pick.r.dmg>best.p.r.dmg))best={a,f,p:pick}}
+ }
+ if(!best){say(S.mode==='T'?'No build reaches that damage with the current settings. Lower the target or raise your bonuses.':'No build fits that budget. Raise the budget or lower your prices.',true);return}
+ S.ammo=best.a;S.food=best.f;S.pts=best.p.pts;
+ $('ammo').value=S.ammo;$('food').value=S.food;render();
+ say(`Applied: ${AMMO[best.a][0]} ammo, ${FOOD[best.f][0]}, ${fmt(best.p.r.dmg)} damage at ${fmt(best.p.r.net,2)} c net per day.`);
+}
+
+try{const h=decodeURIComponent(location.hash.slice(1));if(h){const o=JSON.parse(h);Object.keys(S).forEach(k=>{if(k in o&&typeof o[k]===typeof S[k])S[k]=o[k]})}}catch(e){}
+build();setMode(S.mode==='B'?'B':'T');render();
+</script>
+</body>
+</html>
