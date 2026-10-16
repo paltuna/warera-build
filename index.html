@@ -66,6 +66,7 @@ select{width:auto}
 
 <section class="card" aria-labelledby="bh">
 <h2 id="bh">Buffs and prices</h2>
+<p style="margin:0 0 8px"><button id="live">Refresh live prices</button> <span class="note" id="priceMsg" role="status"></span></p>
 <div class="row"><span class="k">Pill (+60% damage)</span><input id="pillOn" type="checkbox" style="width:auto"><input id="pillP" type="number" step="0.01" min="0" aria-label="Pill price"></div>
 <div class="row"><span class="k">Ammo</span><select id="ammo"></select></div>
 <div id="ammoP"></div>
@@ -214,7 +215,22 @@ function optimize(){
 }
 
 try{const h=decodeURIComponent(location.hash.slice(1));if(h){const o=JSON.parse(h);Object.keys(S).forEach(k=>{if(k in o&&typeof o[k]===typeof S[k])S[k]=o[k]})}}catch(e){}
-build();setMode(S.mode==='B'?'B':'T');render();
+async function loadPrices(){
+ const m=$('priceMsg');m.textContent='Loading prices…';
+ try{
+  const r=await fetch('/api/prices');
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const p=(await r.json())[0].result.data;
+  const set=(k,i,v)=>{if(typeof v!=='number')return;S[k][i]=v;const el=document.querySelector('[data-k="'+k+'"][data-i="'+i+'"]');if(el)el.value=+v.toFixed(4)};
+  set('ammoP',0,p.lightAmmo);set('ammoP',1,p.ammo);set('ammoP',2,p.heavyAmmo);
+  set('foodP',0,p.bread);set('foodP',1,p.steak);set('foodP',2,p.cookedFish);
+  [['caseVal',p.case1],['eliteVal',p.case2]].forEach(([k,v])=>{if(typeof v==='number'){CF[k]=v;const el=document.querySelector('[data-c="'+k+'"]');if(el)el.value=+v.toFixed(4)}});
+  m.textContent='Prices updated at '+new Date().toLocaleTimeString()+'. Pill and gear prices are still manual.';
+  render();
+ }catch(e){m.textContent='Couldn’t load live prices, so enter them by hand.'}
+}
+$('live').onclick=loadPrices;
+build();setMode(S.mode==='B'?'B':'T');render();loadPrices();
 </script>
 </body>
 </html>
