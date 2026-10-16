@@ -79,7 +79,7 @@ select{width:auto}
 <section class="card full" aria-labelledby="gh">
 <h2 id="gh">Equipment</h2>
 <div class="overflow"><div id="gear"></div></div>
-<p class="note">Enter current market prices yourself. This page cannot load live prices.</p>
+<p class="note" id="gearMsg" role="status">Gear prices load from recent market sales. You can also type your own.</p>
 </section>
 
 <section class="card full" aria-labelledby="oh">
@@ -116,7 +116,7 @@ const FOOD=[['Bread',0.10,0.9],['Steak',0.15,2],['Fish',0.20,4.5]];
 const SLOTS=['Weapon','Helmet','Chest','Pants','Boots','Gloves'];
 const CF={maxPts:40,burst:0.37,sust:7.5,caseRate:0.032,caseVal:4,eliteRate:0.0003,eliteVal:15,pill:0.6};
 const CFGDEF=[['maxPts','Skill points'],['burst','Burst hits per health'],['sust','Sustained hits per hunger point'],['caseRate','Cases per hit'],['caseVal','Case value (coins)'],['eliteRate','Elite cases per hit'],['eliteVal','Elite case value'],['pill','Pill damage bonus']];
-const S={pts:{},ammo:1,food:1,pillOn:false,pillP:22,bonus:0,dur:20,ammoP:AMMO.map(a=>a[2]),foodP:FOOD.map(f=>f[2]),gearP:SLOTS.map(()=>28),gearB:SLOTS.map(()=>3),mode:'T',oVal:30000};
+const S={pts:{},ammo:1,food:1,pillOn:false,pillP:22,bonus:0,dur:20,ammoP:AMMO.map(a=>a[2]),foodP:FOOD.map(f=>f[2]),gearP:SLOTS.map(()=>28),gearT:SLOTS.map(()=>3),gearB:SLOTS.map(()=>3),mode:'T',oVal:30000};
 SK.forEach(s=>S.pts[s.id]=0);
 const $=id=>document.getElementById(id);
 const fmt=(n,d=0)=>Number(n).toLocaleString('en',{maximumFractionDigits:d,minimumFractionDigits:d});
@@ -164,10 +164,10 @@ function build(){
  $('food').innerHTML=FOOD.map((a,i)=>`<option value="${i}">${a[0]} (+${a[1]*100}%)</option>`).join('');
  $('ammoP').innerHTML=AMMO.map((a,i)=>`<div class="row"><small>${a[0]} price per hit</small><input type="number" step="0.01" min="0" data-k="ammoP" data-i="${i}" value="${S.ammoP[i]}"></div>`).join('');
  $('foodP').innerHTML=FOOD.map((a,i)=>`<div class="row"><small>${a[0]} price each</small><input type="number" step="0.01" min="0" data-k="foodP" data-i="${i}" value="${S.foodP[i]}"></div>`).join('');
- $('gear').innerHTML=`<table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Slot</th><th align="left">Price (c)</th><th align="left">Damage bonus (%)</th></tr></thead><tbody>${SLOTS.map((n,i)=>`<tr><td>${n}</td><td><input type="number" min="0" step="0.5" data-k="gearP" data-i="${i}" value="${S.gearP[i]}"></td><td><input type="number" min="0" step="0.5" data-k="gearB" data-i="${i}" value="${S.gearB[i]}"></td></tr>`).join('')}</tbody></table>`;
+ $('gear').innerHTML=`<table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Slot</th><th align="left">Tier</th><th align="left">Price (c)</th><th align="left">Damage bonus (%)</th></tr></thead><tbody>${SLOTS.map((n,i)=>`<tr><td>${n}</td><td><select data-k="gearT" data-i="${i}" aria-label="${n} tier">${[1,2,3,4,5,6].map(t=>`<option value="${t}"${S.gearT[i]===t?' selected':''}>Tier ${t}</option>`).join('')}</select></td><td><input type="number" min="0" step="0.5" data-k="gearP" data-i="${i}" value="${S.gearP[i]}"></td><td><input type="number" min="0" step="0.5" data-k="gearB" data-i="${i}" value="${S.gearB[i]}"></td></tr>`).join('')}</tbody></table>`;
  $('cfg').innerHTML=`<table style="border-collapse:collapse"><tbody>${CFGDEF.map(c=>`<tr><td style="padding:3px 12px 3px 0">${c[1]}</td><td><input type="number" step="any" data-c="${c[0]}" value="${CF[c[0]]}"></td></tr>`).join('')}${SK.map((s,i)=>`<tr><td style="padding:3px 12px 3px 0">${s.name}: start / per point</td><td><input type="number" step="any" data-sk="${i}" data-f="base" value="${s.base}"> <input type="number" step="any" data-sk="${i}" data-f="per" value="${s.per}"></td></tr>`).join('')}</tbody></table>`;
  document.body.addEventListener('input',e=>{const t=e.target;
-  if(t.dataset.k){S[t.dataset.k][+t.dataset.i]=+t.value||0}
+  if(t.dataset.k){S[t.dataset.k][+t.dataset.i]=+t.value||0;if(t.dataset.k==='gearT')applyGear(+t.dataset.i)}
   else if(t.dataset.c){CF[t.dataset.c]=+t.value||0}
   else if(t.dataset.sk){SK[+t.dataset.sk][t.dataset.f]=+t.value||0}
   else if(t.id==='pillOn')S.pillOn=t.checked;
@@ -225,12 +225,30 @@ async function loadPrices(){
   set('ammoP',0,p.lightAmmo);set('ammoP',1,p.ammo);set('ammoP',2,p.heavyAmmo);
   set('foodP',0,p.bread);set('foodP',1,p.steak);set('foodP',2,p.cookedFish);
   [['caseVal',p.case1],['eliteVal',p.case2]].forEach(([k,v])=>{if(typeof v==='number'){CF[k]=v;const el=document.querySelector('[data-c="'+k+'"]');if(el)el.value=+v.toFixed(4)}});
-  m.textContent='Prices updated at '+new Date().toLocaleTimeString()+'. Pill and gear prices are still manual.';
+  m.textContent='Prices updated at '+new Date().toLocaleTimeString()+'. The pill price is still manual.';
   render();
  }catch(e){m.textContent='Couldn’t load live prices, so enter them by hand.'}
 }
-$('live').onclick=loadPrices;
-build();setMode(S.mode==='B'?'B':'T');render();loadPrices();
+const GP={},GEARP=['weapon','helmet','chest','pants','boots','gloves'];
+function applyGear(i){
+ const c=GEARP[i]+S.gearT[i];
+ if(typeof GP[c]==='number'){S.gearP[i]=GP[c];const el=document.querySelector('[data-k="gearP"][data-i="'+i+'"]');if(el)el.value=+GP[c].toFixed(2)}
+}
+async function loadGear(){
+ const m=$('gearMsg');m.textContent='Loading gear sales…';
+ try{
+  const r=await fetch('/api/gear');
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const g=await r.json();
+  if(!g.codes)throw new Error('No data');
+  Object.keys(g.codes).forEach(c=>GP[c]=g.codes[c].median);
+  SLOTS.forEach((n,i)=>applyGear(i));
+  m.textContent='Gear prices are medians of '+g.sample+' recent market sales. Codes seen: '+Object.keys(g.codes).sort().join(', ')+'.';
+  render();
+ }catch(e){m.textContent='Couldn’t load gear sales, so enter gear prices by hand.'}
+}
+$('live').onclick=()=>{loadPrices();loadGear()};
+build();setMode(S.mode==='B'?'B':'T');render();loadPrices();loadGear();
 </script>
 </body>
 </html>
