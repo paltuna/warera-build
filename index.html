@@ -229,9 +229,10 @@ async function loadPrices(){
   render();
  }catch(e){m.textContent='Couldn’t load live prices, so enter them by hand.'}
 }
+const WEAPONS=['knife','gun','rifle','sniper','tank','jet'];
 const GP={},GEARP=['weapon','helmet','chest','pants','boots','gloves'];
 function applyGear(i){
- const c=GEARP[i]+S.gearT[i];
+ const c=i===0?WEAPONS[S.gearT[0]-1]:GEARP[i]+S.gearT[i];
  if(typeof GP[c]==='number'){S.gearP[i]=GP[c];const el=document.querySelector('[data-k="gearP"][data-i="'+i+'"]');if(el)el.value=+GP[c].toFixed(2)}
 }
 async function loadGear(){
