@@ -3,7 +3,7 @@
 // Needs the WARERA_API_KEY environment variable (the sales feed requires a token).
 
 const BASE = "https://api2.warera.io/trpc";
-const PAGES = 3;
+const PAGES = 6;
 const LIMIT = 100;
 
 export default async function handler(req, res) {
@@ -28,7 +28,8 @@ export default async function handler(req, res) {
       }
       for (const t of data.items || []) {
         const it = t.item;
-        if (!it || it.type !== "equipment" || it.state !== it.maxState) continue;
+        // Weapons may not be typed "equipment", so keep any item sold at full durability.
+        if (!it || (it.state !== undefined && it.state !== it.maxState)) continue;
         (byCode[t.itemCode] = byCode[t.itemCode] || []).push(t.money / (t.quantity || 1));
         sample++;
       }
